@@ -1,0 +1,5 @@
+[
+    {"name": "Dario Amodei", "bio": "CEO of Anthropic", "platform_handles": {"x": "DarioAmodei"}},
+    {"name": "Sam Altman", "bio": "CEO of OpenAI", "platform_handles": {"x": "sama", "substack": "https://blog.samaltman.com/feed"}},
+    {"name": "Arthur Mensch", "bio": "CEO of Mistral AI", "platform_handles": {"x": "arthurmensch"}}
+]

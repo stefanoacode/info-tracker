@@ -1,0 +1,17 @@
+[
+    {
+        "name": "Andrej Karpathy",
+        "bio": "Former Tesla AI Director, OpenAI founding member, AI educator",
+        "platform_handles": {"x": "karpathy", "youtube": "UCsBjURrPoezykLs9EqgamOA"}
+    },
+    {
+        "name": "Simon Willison",
+        "bio": "Creator of Datasette, Django co-creator, LLM tools builder",
+        "platform_handles": {"x": "simonw", "substack": "https://simonwillison.net/atom/everything/"}
+    },
+    {
+        "name": "Swyx",
+        "bio": "AI Engineer, writer, founder of Latent Space",
+        "platform_handles": {"x": "swyx", "youtube": "UCVIyBFAnEHPBMOQ7r3GxnOg", "substack": "https://www.latent.space/feed"}
+    }
+]
