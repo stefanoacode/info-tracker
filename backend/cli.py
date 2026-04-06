@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.database import Base, ensure_data_dir
-from backend.models import Category, Person, Content, Trend
+from backend.models import Category, Person, Content, Trend, get_config, set_config
 from backend.seed import seed_database
 
 
@@ -269,17 +269,39 @@ def cmd_categories(args: list[str]):
 
 
 def cmd_config(args: list[str]):
-    """Show or update config. Usage: config [frequency <hours>]"""
+    """Show or update config. Usage: config [set <key> <value>]"""
+    db = get_db()
     if not args:
         nitter = settings.nitter_instance or "auto (public instances)"
+        freq = get_config(db, "digest_frequency", "not set")
         print(f"Nitter instance: {nitter}")
-        print(f"Digest frequency: every {settings.digest_frequency_hours} hours")
+        print(f"Digest frequency: {freq}")
         print(f"Database: {settings.database_url}")
+        db.close()
         return
-    if args[0] == "frequency" and len(args) > 1:
-        print(f"To change digest frequency, edit .env and set DIGEST_FREQUENCY_HOURS={args[1]}")
+
+    if args[0] == "set" and len(args) >= 3:
+        key = args[1]
+        value = " ".join(args[2:])
+        set_config(db, key, value)
+        print(f"Set {key} = {value}")
+        db.close()
         return
-    print(f"Unknown config command: {args[0]}")
+
+    # Shorthand: config frequency 6h
+    if args[0] == "frequency" and len(args) >= 2:
+        set_config(db, "digest_frequency", args[1])
+        print(f"Digest frequency set to: {args[1]}")
+        db.close()
+        return
+
+    # Show a specific key
+    value = get_config(db, args[0])
+    if value:
+        print(f"{args[0]} = {value}")
+    else:
+        print(f"No config value for '{args[0]}'")
+    db.close()
 
 
 def cmd_status(args: list[str]):
