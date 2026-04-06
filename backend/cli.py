@@ -1,24 +1,15 @@
 """CLI for info-tracker. Called by the Claude Code skill."""
+from __future__ import annotations
+
 import asyncio
-import json
 import sys
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
-
 from backend.config import settings
-from backend.database import Base, ensure_data_dir
-from backend.models import Category, Person, Content, Trend, get_config, set_config
-from backend.seed import seed_database
-
-
-def get_db() -> Session:
-    ensure_data_dir()
-    engine = create_engine(settings.database_url, echo=False)
-    Base.metadata.create_all(engine)
-    session = Session(engine)
-    seed_database(session)
-    return session
+from backend.store import (
+    get_people, find_person, add_person, remove_person, update_person,
+    get_categories, add_category, remove_category,
+    get_content, load_config, get_config_value, set_config_value,
+)
 
 
 def get_collectors() -> dict:
@@ -37,128 +28,72 @@ def get_collectors() -> dict:
 
 
 def cmd_digest(args: list[str]):
-    """Show recent content for Claude to summarize inline. Optionally filter by category."""
-    db = get_db()
+    """Show recent content for Claude to summarize inline."""
     category = args[0] if args else None
-    query = db.query(Content).join(Person).join(Category)
-    if category:
-        query = query.filter(Category.name == category)
-    contents = query.order_by(Content.published_at.desc().nullslast()).limit(30).all()
-    if not contents:
+    items = get_content(category=category)
+    if not items:
         print("No content yet. Run: /info-tracker collect")
-        db.close()
         return
-    for c in contents:
-        print(f"--- [{c.person.name}] ({c.person.category.name}, {c.source_platform}) ---")
-        print(f"URL: {c.original_url}")
-        if c.published_at:
-            print(f"Date: {c.published_at.strftime('%Y-%m-%d')}")
-        # Truncate very long content to keep context manageable
-        text = c.raw_text
+    for c in items:
+        print(f"--- [{c['person']}] ({c['category']}, {c['platform']}) ---")
+        print(f"URL: {c['url']}")
+        if c.get("date"):
+            print(f"Date: {c['date'][:10]}")
+        text = c["text"]
         if len(text) > 1000:
             text = text[:1000] + "... [truncated]"
         print(text)
         print()
-    print(f"({len(contents)} items)")
-    db.close()
+    print(f"({len(items)} items)")
 
 
 def cmd_collect(args: list[str]):
     """Collect content from all tracked people."""
-    db = get_db()
     from backend.services.collector_service import CollectorService
     service = CollectorService(collectors=get_collectors())
-    new_content = asyncio.run(service.collect_all(db))
-    print(f"Collected {len(new_content)} new items.")
-    db.close()
-
-
-def cmd_summarize(args: list[str]):
-    """Summarize unsummarized content using Claude API."""
-    if not settings.anthropic_api_key:
-        print("Error: ANTHROPIC_API_KEY not set in .env")
-        return
-    db = get_db()
-    from backend.llm.claude_provider import ClaudeProvider
-    from backend.services.summarizer import SummarizerService
-    llm = ClaudeProvider(api_key=settings.anthropic_api_key)
-    service = SummarizerService(llm=llm)
-    count = asyncio.run(service.summarize_pending(db))
-    print(f"Summarized {count} items.")
-    db.close()
-
-
-def cmd_trends(args: list[str]):
-    """Show trending topics."""
-    db = get_db()
-    trends = db.query(Trend).order_by(Trend.momentum_score.desc()).limit(20).all()
-    if not trends:
-        print("No trends yet. Run: /info-tracker collect then /info-tracker summarize")
-        return
-    for t in trends:
-        sentiment = f"+{t.sentiment_score:.1f}" if t.sentiment_score > 0 else f"{t.sentiment_score:.1f}"
-        print(f"**{t.topic}** (momentum: {t.momentum_score * 100:.0f}%, sentiment: {sentiment})")
-        print(f"  {t.description}")
-        print()
-    db.close()
+    new_count = asyncio.run(service.collect_all())
+    print(f"Collected {new_count} new items.")
 
 
 def cmd_people(args: list[str]):
-    """List all tracked people, optionally filtered by category."""
-    db = get_db()
-    query = db.query(Person).join(Category)
-    if args:
-        query = query.filter(Category.name == args[0])
-    people = query.order_by(Category.sort_order, Person.name).all()
+    """List all tracked people."""
+    category = args[0] if args else None
+    people = get_people(category=category)
+    if not people:
+        print("No people tracked.")
+        return
     current_cat = None
     for p in people:
-        if p.category.name != current_cat:
-            current_cat = p.category.name
+        if p["category"] != current_cat:
+            current_cat = p["category"]
             print(f"\n## {current_cat}")
-        handles = ", ".join(f"{k}: {v}" for k, v in p.platform_handles.items())
-        print(f"  [{p.id}] {p.name} — {handles}")
+        handles = ", ".join(f"{k}: {v}" for k, v in p["platforms"].items())
+        print(f"  [{p['id']}] {p['name']} — {handles}")
     print(f"\n{len(people)} people tracked.")
-    db.close()
 
 
 def cmd_add(args: list[str]):
-    """Add a person. Usage: add <name> <category> [--x handle] [--youtube channel_id] [--substack feed_url] [--reddit username]"""
+    """Add a person. Usage: add <name> <category> [--x handle] [--substack feed_url] [--reddit username]"""
     if len(args) < 2:
-        print("Usage: add <name> <category> [--x handle] [--youtube channel_id] [--substack feed_url] [--reddit username]")
+        print("Usage: add <name> <category> [--x handle] [--substack feed_url] [--reddit username]")
         return
-    name = args[0]
-    category_name = args[1]
-    handles = {}
+    name, category_name = args[0], args[1]
+    platforms = {}
     i = 2
     while i < len(args):
         if args[i].startswith("--") and i + 1 < len(args):
-            platform = args[i][2:]
-            handles[platform] = args[i + 1]
+            platforms[args[i][2:]] = args[i + 1]
             i += 2
         else:
             i += 1
 
-    db = get_db()
-    cat = db.query(Category).filter_by(name=category_name).first()
-    if not cat:
-        # Create custom category
-        max_order = db.query(Category).count()
-        cat = Category(name=category_name, is_custom=True, sort_order=max_order + 1)
-        db.add(cat)
-        db.commit()
-        print(f"Created new category: {category_name}")
-
-    existing = db.query(Person).filter_by(name=name).first()
+    existing = find_person(name)
     if existing:
-        print(f"'{name}' already exists (id={existing.id}). Use 'update' to modify.")
-        db.close()
+        print(f"'{name}' already exists (id={existing['id']}). Use 'update' to modify.")
         return
 
-    person = Person(name=name, category_id=cat.id, platform_handles=handles, is_custom=True)
-    db.add(person)
-    db.commit()
-    print(f"Added {name} to {category_name} with handles: {handles}")
-    db.close()
+    person = add_person(name, category_name, platforms)
+    print(f"Added {name} to {category_name} with platforms: {platforms}")
 
 
 def cmd_remove(args: list[str]):
@@ -166,157 +101,101 @@ def cmd_remove(args: list[str]):
     if not args:
         print("Usage: remove <id or name>")
         return
-    db = get_db()
-    target = args[0]
-    if target.isdigit():
-        person = db.query(Person).get(int(target))
+    name = remove_person(args[0])
+    if name:
+        print(f"Removed {name}")
     else:
-        person = db.query(Person).filter_by(name=target).first()
-    if not person:
-        print(f"Person not found: {target}")
-        db.close()
-        return
-    name = person.name
-    db.delete(person)
-    db.commit()
-    print(f"Removed {name}")
-    db.close()
+        print(f"Person not found: {args[0]}")
 
 
 def cmd_update(args: list[str]):
-    """Update a person's handles. Usage: update <id or name> --x handle --youtube channel_id ..."""
+    """Update a person's platforms. Usage: update <name or id> --x handle --substack url ..."""
     if len(args) < 3:
-        print("Usage: update <id or name> --x handle --youtube channel_id --substack feed_url --reddit username")
+        print("Usage: update <name or id> --x handle --substack feed_url --reddit username")
         return
-    db = get_db()
     target = args[0]
-    if target.isdigit():
-        person = db.query(Person).get(int(target))
-    else:
-        person = db.query(Person).filter_by(name=target).first()
-    if not person:
-        print(f"Person not found: {target}")
-        db.close()
-        return
-
-    handles = dict(person.platform_handles)
+    updates = {}
     i = 1
     while i < len(args):
         if args[i].startswith("--") and i + 1 < len(args):
-            platform = args[i][2:]
-            value = args[i + 1]
-            if value.lower() == "remove":
-                handles.pop(platform, None)
-                print(f"  Removed {platform}")
-            else:
-                handles[platform] = value
-                print(f"  Set {platform} = {value}")
+            updates[args[i][2:]] = args[i + 1]
             i += 2
         else:
             i += 1
 
-    person.platform_handles = handles
-    db.commit()
-    print(f"Updated {person.name}: {handles}")
-    db.close()
+    person = update_person(target, updates)
+    if person:
+        print(f"Updated {person['name']}: {person['platforms']}")
+    else:
+        print(f"Person not found: {target}")
 
 
 def cmd_categories(args: list[str]):
-    """List, add, or remove categories. Usage: categories [add <name> [description] | remove <name>]"""
-    db = get_db()
+    """List, add, or remove categories."""
     if not args:
-        cats = db.query(Category).order_by(Category.sort_order).all()
-        for c in cats:
-            count = db.query(Person).filter_by(category_id=c.id).count()
-            custom = " (custom)" if c.is_custom else ""
-            desc = f" — {c.description}" if c.description else ""
-            print(f"  {c.name}{custom}{desc} ({count} people)")
-        db.close()
+        for c in get_categories():
+            desc = f" — {c['description']}" if c.get("description") else ""
+            print(f"  {c['name']}{desc} ({c['count']} people)")
         return
 
     action = args[0].lower()
     if action == "add" and len(args) >= 2:
         name = args[1]
         description = " ".join(args[2:]) if len(args) > 2 else ""
-        existing = db.query(Category).filter_by(name=name).first()
-        if existing:
+        if add_category(name, description):
+            print(f"Created category: {name}")
+        else:
             print(f"Category '{name}' already exists.")
-            db.close()
-            return
-        max_order = db.query(Category).count()
-        cat = Category(name=name, description=description, is_custom=True, sort_order=max_order + 1)
-        db.add(cat)
-        db.commit()
-        print(f"Created category: {name}")
     elif action == "remove" and len(args) >= 2:
-        name = args[1]
-        cat = db.query(Category).filter_by(name=name).first()
-        if not cat:
-            print(f"Category '{name}' not found.")
-            db.close()
-            return
-        people_count = db.query(Person).filter_by(category_id=cat.id).count()
-        if people_count > 0:
-            print(f"Cannot remove '{name}' — it has {people_count} people. Remove them first.")
-            db.close()
-            return
-        db.delete(cat)
-        db.commit()
-        print(f"Removed category: {name}")
+        result = remove_category(args[1])
+        if result:
+            print(f"Removed category: {result}")
+        elif result is None:
+            print(f"Cannot remove '{args[1]}' — it has people. Remove them first.")
+        else:
+            print(f"Category '{args[1]}' not found.")
     else:
         print("Usage: categories [add <name> [description] | remove <name>]")
-    db.close()
 
 
 def cmd_config(args: list[str]):
-    """Show or update config. Usage: config [set <key> <value>]"""
-    db = get_db()
+    """Show or update config."""
     if not args:
         nitter = settings.nitter_instance or "auto (public instances)"
-        freq = get_config(db, "digest_frequency", "not set")
+        freq = get_config_value("digest_frequency", "not set")
         print(f"Nitter instance: {nitter}")
         print(f"Digest frequency: {freq}")
-        print(f"Database: {settings.database_url}")
-        db.close()
+        config = load_config()
+        for k, v in config.items():
+            if k != "digest_frequency":
+                print(f"{k}: {v}")
         return
 
     if args[0] == "set" and len(args) >= 3:
-        key = args[1]
-        value = " ".join(args[2:])
-        set_config(db, key, value)
+        key, value = args[1], " ".join(args[2:])
+        set_config_value(key, value)
         print(f"Set {key} = {value}")
-        db.close()
         return
 
-    # Shorthand: config frequency 6h
     if args[0] == "frequency" and len(args) >= 2:
-        set_config(db, "digest_frequency", args[1])
-        print(f"Digest frequency set to: {args[1]}")
-        db.close()
+        set_config_value("digest_frequency", " ".join(args[1:]))
+        print(f"Digest frequency set to: {' '.join(args[1:])}")
         return
 
-    # Show a specific key
-    value = get_config(db, args[0])
+    value = get_config_value(args[0])
     if value:
         print(f"{args[0]} = {value}")
     else:
         print(f"No config value for '{args[0]}'")
-    db.close()
 
 
 def cmd_status(args: list[str]):
     """Show system status."""
-    db = get_db()
-    people_count = db.query(Person).count()
-    content_count = db.query(Content).count()
-    summarized = db.query(Content).filter(Content.ai_summary.isnot(None)).count()
-    unsummarized = content_count - summarized
-    trend_count = db.query(Trend).count()
-    print(f"People tracked: {people_count}")
-    print(f"Content collected: {content_count} ({summarized} summarized, {unsummarized} pending)")
-    print(f"Trends detected: {trend_count}")
+    people = get_people()
+    content = get_content(limit=99999)
+    print(f"People tracked: {len(people)}")
+    print(f"Content collected: {len(content)}")
     print(f"Collectors available: {', '.join(get_collectors().keys())}")
-    db.close()
 
 
 COMMANDS = {
@@ -324,8 +203,6 @@ COMMANDS = {
     "today": cmd_digest,
     "collect": cmd_collect,
     "refresh": cmd_collect,
-    "summarize": cmd_summarize,
-    "trends": cmd_trends,
     "people": cmd_people,
     "list": cmd_people,
     "add": cmd_add,

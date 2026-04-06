@@ -1,38 +1,43 @@
+from __future__ import annotations
+
 import logging
-from sqlalchemy.orm import Session
-from backend.collectors.base import BaseCollector, CollectedItem
-from backend.models.content import Content
-from backend.models.person import Person
+from datetime import datetime, timezone
+
+from backend.collectors.base import BaseCollector
+from backend.store import get_people, add_content
 
 logger = logging.getLogger(__name__)
+
 
 class CollectorService:
     def __init__(self, collectors: dict[str, BaseCollector]):
         self.collectors = collectors
 
-    async def collect_for_person(self, db: Session, person: Person) -> list[Content]:
-        new_contents = []
-        for platform, handle in person.platform_handles.items():
+    async def collect_for_person(self, person: dict) -> list[dict]:
+        new_items = []
+        for platform, handle in person.get("platforms", {}).items():
             collector = self.collectors.get(platform)
             if not collector:
                 continue
             try:
                 items = await collector.collect(handle)
                 for item in items:
-                    existing = db.query(Content).filter_by(person_id=person.id, original_url=item.original_url).first()
-                    if existing:
-                        continue
-                    content = Content(person_id=person.id, source_platform=item.source_platform, original_url=item.original_url, raw_text=item.raw_text, published_at=item.published_at)
-                    db.add(content)
-                    new_contents.append(content)
+                    new_items.append({
+                        "person": person["name"],
+                        "category": person["category"],
+                        "platform": item.source_platform,
+                        "url": item.original_url,
+                        "text": item.raw_text,
+                        "date": item.published_at.isoformat() if item.published_at else "",
+                    })
             except Exception as e:
-                logger.error(f"Collection failed for {person.name} on {platform}: {e}")
-        db.commit()
-        return new_contents
+                logger.error(f"Collection failed for {person['name']} on {platform}: {e}")
+        return new_items
 
-    async def collect_all(self, db: Session) -> list[Content]:
-        all_new = []
-        for person in db.query(Person).all():
-            new = await self.collect_for_person(db, person)
-            all_new.extend(new)
-        return all_new
+    async def collect_all(self) -> int:
+        people = get_people()
+        all_items = []
+        for person in people:
+            items = await self.collect_for_person(person)
+            all_items.extend(items)
+        return add_content(all_items)
