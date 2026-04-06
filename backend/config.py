@@ -11,7 +11,6 @@ _DATA_DIR = _PROJECT_ROOT / "data"
 class Settings(BaseSettings):
     database_url: str = f"sqlite:///{_DATA_DIR}/info_tracker.db"
     anthropic_api_key: str = ""
-    youtube_api_key: str = ""
     nitter_instance: str = ""  # Leave blank to try public instances
     digest_frequency_hours: int = 6
 

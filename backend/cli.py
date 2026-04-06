@@ -24,17 +24,13 @@ def get_db() -> Session:
 def get_collectors() -> dict:
     from backend.collectors.rss import RSSCollector
     from backend.collectors.reddit import RedditCollector
-    from backend.collectors.youtube import YouTubeCollector
     from backend.collectors.twitter import TwitterCollector
 
-    collectors = {
+    return {
         "substack": RSSCollector(),
         "reddit": RedditCollector(),
         "x": TwitterCollector(nitter_instance=settings.nitter_instance),
     }
-    if settings.youtube_api_key:
-        collectors["youtube"] = YouTubeCollector(api_key=settings.youtube_api_key)
-    return collectors
 
 
 # --- Commands ---
@@ -275,7 +271,6 @@ def cmd_categories(args: list[str]):
 def cmd_config(args: list[str]):
     """Show or update config. Usage: config [frequency <hours>]"""
     if not args:
-        print(f"YOUTUBE_API_KEY: {'set' if settings.youtube_api_key else 'not set'}")
         nitter = settings.nitter_instance or "auto (public instances)"
         print(f"Nitter instance: {nitter}")
         print(f"Digest frequency: every {settings.digest_frequency_hours} hours")

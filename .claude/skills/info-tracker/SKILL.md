@@ -64,25 +64,24 @@ cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend people [Category]
 
 ### "add" — Add a person to track
 ```bash
-cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend add "<Name>" "<Category>" [--x handle] [--youtube channel_id] [--substack feed_url] [--reddit username]
+cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend add "<Name>" "<Category>" [--x handle] [--substack feed_url] [--reddit username]
 ```
 - Category is created automatically if it doesn't exist
 - Platform flags are optional — add whichever the user provides
-- `--youtube` expects a YouTube channel ID (e.g., UCsBjURrPoezykLs9EqgamOA)
 - `--substack` expects an RSS/Atom feed URL (e.g., https://example.substack.com/feed)
 - `--x` expects a Twitter/X username without @
 - `--reddit` expects a Reddit username without u/
 
-If the user says "follow Andrej Karpathy on YouTube", extract the info and run:
+If the user says "follow Andrej Karpathy on X", extract the info and run:
 ```bash
-cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend add "Andrej Karpathy" "Builders" --youtube UCsBjURrPoezykLs9EqgamOA
+cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend add "Andrej Karpathy" "Builders" --x karpathy
 ```
 
 If you don't know the channel ID or feed URL, ask the user or help them find it.
 
 ### "update" — Update a person's platforms
 ```bash
-cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend update "<Name or ID>" --youtube <channel_id> --substack <feed_url>
+cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend update "<Name or ID>" --x <handle> --substack <feed_url>
 ```
 Use `--<platform> remove` to untrack a platform.
 
@@ -136,5 +135,4 @@ For scheduled digests via Telegram/Discord/iMessage:
 
 If a command fails:
 - RSS/Substack, Reddit, and X (via Nitter) work with **no API keys**
-- YouTube needs `YOUTUBE_API_KEY` in `.env`
 - If Nitter public instances are down, user can self-host and set `NITTER_INSTANCE` in `.env`
