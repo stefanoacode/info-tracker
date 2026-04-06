@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from sqlalchemy.orm import Session
 from backend.models.category import Category
 from backend.models.content import Content

@@ -1,6 +1,9 @@
+from __future__ import annotations
+
+from pathlib import Path
+
 from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session
 
 from backend.config import settings
 
@@ -9,21 +12,18 @@ class Base(DeclarativeBase):
     pass
 
 
-# Async engine for FastAPI
-async_engine = create_async_engine(settings.database_url, echo=False)
-AsyncSessionLocal = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
+def get_engine(url: str | None = None):
+    db_url = url or settings.database_url
+    return create_engine(db_url, echo=False)
 
 
-# Sync engine for tests and scripts
-def get_sync_engine(url: str = "sqlite:///:memory:"):
-    return create_engine(url)
+def get_db(url: str | None = None) -> Session:
+    """Get a database session. Creates tables and seeds on first use."""
+    engine = get_engine(url)
+    Base.metadata.create_all(engine)
+    return Session(engine)
 
 
-async def get_db():
-    async with AsyncSessionLocal() as session:
-        yield session
-
-
-async def init_db():
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+def ensure_data_dir():
+    """Ensure the data directory exists for SQLite."""
+    Path(settings.database_url.replace("sqlite:///", "")).parent.mkdir(parents=True, exist_ok=True)

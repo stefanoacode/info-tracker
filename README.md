@@ -1,52 +1,43 @@
 # Info Tracker
 
-Local-first AI ecosystem tracker. Aggregates content from AI builders, researchers, founders, investors, and commentators across X/Twitter, YouTube, Substack, and Reddit. Summarizes with Claude API using pyramid-principle formatting. Includes a web dashboard and Claude Code skill.
+A Claude Code skill that tracks AI ecosystem influencers across X/Twitter, YouTube, Substack, and Reddit. Collects first-hand content, summarizes it with Claude API using pyramid-principle formatting, and delivers digests via Claude Code Channels.
 
-## Quick Start
+No server, no web app — just a skill.
 
-### Prerequisites
-
-- Python 3.12+
-- Node.js 18+
-- [uv](https://github.com/astral-sh/uv) (Python package manager)
-
-### Setup
+## Setup
 
 ```bash
-# Clone and enter project
 cd info-tracker
-
-# Copy and edit env
 cp .env.example .env
-# Add your ANTHROPIC_API_KEY (required) and optional platform keys
+# Add your ANTHROPIC_API_KEY (required for summarization)
+# Optionally add YOUTUBE_API_KEY and X_API_BEARER_TOKEN
 
-# Install Python deps
 uv venv && uv pip install -e ".[dev]"
-
-# Start backend
-uv run uvicorn backend.main:app --reload
-
-# In another terminal — start frontend
-cd frontend && npm install && npm run dev
 ```
 
-Open http://localhost:5173
+## Usage
 
-### Claude Code Skill
-
-From any Claude Code session in this project:
+All commands via the Claude Code skill:
 
 ```
-/info-tracker today          # Today's digest
-/info-tracker trends         # Trending topics
-/info-tracker people         # List tracked people
-/info-tracker add "Name" Builders  # Add someone
-/info-tracker refresh        # Manual collection
+/info-tracker                     # Today's digest
+/info-tracker collect             # Fetch content from all platforms
+/info-tracker summarize           # Summarize with Claude API
+/info-tracker trends              # Trending topics
+
+/info-tracker people              # List tracked people
+/info-tracker add "Name" "Category" --x handle --youtube channel_id --substack feed_url
+/info-tracker update "Name" --reddit username
+/info-tracker remove "Name"
+
+/info-tracker categories          # List categories
+/info-tracker config              # Show configuration
+/info-tracker status              # System status
 ```
 
-### Channels (Notifications)
+## Channels (Notifications)
 
-Set up Claude Code Channels for Telegram/Discord/iMessage delivery:
+For digests via Telegram/Discord/iMessage:
 
 ```bash
 /plugin install telegram@claude-plugins-official
@@ -54,14 +45,7 @@ Set up Claude Code Channels for Telegram/Discord/iMessage delivery:
 claude --channels plugin:telegram@claude-plugins-official
 ```
 
-Then ask: "Send me today's info-tracker digest"
-
-## Architecture
-
-- **Backend**: FastAPI + SQLite + APScheduler
-- **Frontend**: React + Vite + Tailwind
-- **AI**: Claude API (pluggable via LLMProvider)
-- **Skill**: Claude Code skill querying the REST API
+Then from Telegram: "give me my info-tracker digest"
 
 ## License
 
