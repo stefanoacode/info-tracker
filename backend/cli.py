@@ -27,11 +27,13 @@ def get_collectors() -> dict:
     from backend.collectors.youtube import YouTubeCollector
     from backend.collectors.twitter import TwitterCollector
 
-    collectors = {"substack": RSSCollector(), "reddit": RedditCollector()}
+    collectors = {
+        "substack": RSSCollector(),
+        "reddit": RedditCollector(),
+        "x": TwitterCollector(nitter_instance=settings.nitter_instance),
+    }
     if settings.youtube_api_key:
         collectors["youtube"] = YouTubeCollector(api_key=settings.youtube_api_key)
-    if settings.x_api_bearer_token:
-        collectors["x"] = TwitterCollector(bearer_token=settings.x_api_bearer_token)
     return collectors
 
 
@@ -224,22 +226,58 @@ def cmd_update(args: list[str]):
 
 
 def cmd_categories(args: list[str]):
-    """List all categories."""
+    """List, add, or remove categories. Usage: categories [add <name> [description] | remove <name>]"""
     db = get_db()
-    cats = db.query(Category).order_by(Category.sort_order).all()
-    for c in cats:
-        count = db.query(Person).filter_by(category_id=c.id).count()
-        custom = " (custom)" if c.is_custom else ""
-        print(f"  {c.name}{custom} — {count} people")
+    if not args:
+        cats = db.query(Category).order_by(Category.sort_order).all()
+        for c in cats:
+            count = db.query(Person).filter_by(category_id=c.id).count()
+            custom = " (custom)" if c.is_custom else ""
+            desc = f" — {c.description}" if c.description else ""
+            print(f"  {c.name}{custom}{desc} ({count} people)")
+        db.close()
+        return
+
+    action = args[0].lower()
+    if action == "add" and len(args) >= 2:
+        name = args[1]
+        description = " ".join(args[2:]) if len(args) > 2 else ""
+        existing = db.query(Category).filter_by(name=name).first()
+        if existing:
+            print(f"Category '{name}' already exists.")
+            db.close()
+            return
+        max_order = db.query(Category).count()
+        cat = Category(name=name, description=description, is_custom=True, sort_order=max_order + 1)
+        db.add(cat)
+        db.commit()
+        print(f"Created category: {name}")
+    elif action == "remove" and len(args) >= 2:
+        name = args[1]
+        cat = db.query(Category).filter_by(name=name).first()
+        if not cat:
+            print(f"Category '{name}' not found.")
+            db.close()
+            return
+        people_count = db.query(Person).filter_by(category_id=cat.id).count()
+        if people_count > 0:
+            print(f"Cannot remove '{name}' — it has {people_count} people. Remove them first.")
+            db.close()
+            return
+        db.delete(cat)
+        db.commit()
+        print(f"Removed category: {name}")
+    else:
+        print("Usage: categories [add <name> [description] | remove <name>]")
     db.close()
 
 
 def cmd_config(args: list[str]):
     """Show or update config. Usage: config [frequency <hours>]"""
     if not args:
-        print(f"ANTHROPIC_API_KEY: {'set' if settings.anthropic_api_key else 'not set'}")
         print(f"YOUTUBE_API_KEY: {'set' if settings.youtube_api_key else 'not set'}")
-        print(f"X_API_BEARER_TOKEN: {'set' if settings.x_api_bearer_token else 'not set'}")
+        nitter = settings.nitter_instance or "auto (public instances)"
+        print(f"Nitter instance: {nitter}")
         print(f"Digest frequency: every {settings.digest_frequency_hours} hours")
         print(f"Database: {settings.database_url}")
         return

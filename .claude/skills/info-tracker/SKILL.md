@@ -91,10 +91,18 @@ Use `--<platform> remove` to untrack a platform.
 cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend remove "<Name or ID>"
 ```
 
-### "categories"
-List all categories:
+### "categories" — List, add, or remove categories
+List all:
 ```bash
 cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend categories
+```
+Add a new category:
+```bash
+cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend categories add "<Name>" "<Description>"
+```
+Remove an empty category:
+```bash
+cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend categories remove "<Name>"
 ```
 
 ### "config"
@@ -127,6 +135,6 @@ For scheduled digests via Telegram/Discord/iMessage:
 ## Error Handling
 
 If a command fails:
-- RSS/Substack and Reddit work with **no API keys**
+- RSS/Substack, Reddit, and X (via Nitter) work with **no API keys**
 - YouTube needs `YOUTUBE_API_KEY` in `.env`
-- X/Twitter needs `X_API_BEARER_TOKEN` in `.env`
+- If Nitter public instances are down, user can self-host and set `NITTER_INSTANCE` in `.env`

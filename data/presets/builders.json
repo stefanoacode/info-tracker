@@ -2,7 +2,7 @@
     {
         "name": "Andrej Karpathy",
         "bio": "Former Tesla AI Director, OpenAI founding member, AI educator",
-        "platform_handles": {"x": "karpathy", "youtube": "UCsBjURrPoezykLs9EqgamOA"}
+        "platform_handles": {"x": "karpathy"}
     },
     {
         "name": "Simon Willison",
@@ -12,6 +12,6 @@
     {
         "name": "Swyx",
         "bio": "AI Engineer, writer, founder of Latent Space",
-        "platform_handles": {"x": "swyx", "youtube": "UCVIyBFAnEHPBMOQ7r3GxnOg", "substack": "https://www.latent.space/feed"}
+        "platform_handles": {"x": "swyx", "substack": "https://www.latent.space/feed"}
     }
 ]
