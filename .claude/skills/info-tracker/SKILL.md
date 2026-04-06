@@ -7,7 +7,7 @@ allowed-tools: Bash(cd *) Bash(uv run *)
 
 # Info Tracker
 
-Track and digest first-hand content from AI builders, researchers, founders, investors, and commentators. No server needed — runs directly against a local SQLite database.
+Track and digest first-hand content from AI builders, researchers, founders, investors, and commentators. No server, no API keys required — Claude summarizes directly.
 
 **Project dir:** `${CLAUDE_SKILL_DIR}/../../..`
 
@@ -21,33 +21,40 @@ cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend <command> [args]
 Based on `$ARGUMENTS`, run the matching command:
 
 ### "today" or "digest" (default — no arguments)
+Fetch recent content and summarize it:
 ```bash
 cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend digest
 ```
-Present the output using pyramid principle: lead with what matters most, source URLs always included.
+The CLI outputs raw collected content. **You (Claude) then summarize it** using pyramid principle:
+1. Lead with top 3-5 takeaways across all content
+2. Group by person: **Name** (category): one-line takeaway — [Source](url)
+3. Skip trivial or promotional content
+4. Always include the source URL
 
 ### "digest <Category>"
 ```bash
 cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend digest <Category>
 ```
+Same summarization approach, filtered to one category.
 
 ### "collect" or "refresh"
 Collect new content from all tracked people's platforms:
 ```bash
 cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend collect
 ```
-
-### "summarize"
-Summarize collected content using Claude API:
-```bash
-cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend summarize
-```
+No API keys needed for RSS/Substack and Reddit. YouTube and X require keys in `.env`.
 
 ### "trends"
-Show trending topics across the ecosystem:
+Fetch recent content and analyze trends:
 ```bash
-cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend trends
+cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend digest
 ```
+Read the output and identify:
+- Topics mentioned by multiple people
+- Emerging themes gaining momentum
+- Contrarian or surprising takes
+
+Present as: **Topic** — what's happening, who's saying what, with URLs.
 
 ### "people" or "list" [Category]
 List all tracked people:
@@ -90,13 +97,10 @@ List all categories:
 cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend categories
 ```
 
-### "config" — Show or update configuration
+### "config"
+Show configuration:
 ```bash
 cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend config
-```
-To change digest frequency (for Channel notifications):
-```bash
-cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend config frequency <hours>
 ```
 
 ### "status"
@@ -105,26 +109,24 @@ Show system status (people count, content stats, available collectors):
 cd ${CLAUDE_SKILL_DIR}/../../.. && uv run python -m backend status
 ```
 
-## Workflow: Collect + Summarize
+## Workflow
 
-When the user asks for a digest and there's no content yet, guide them:
+When the user asks for a digest and there's no content yet:
 1. `/info-tracker collect` — fetch content from all platforms
-2. `/info-tracker summarize` — summarize with Claude API
-3. `/info-tracker today` — view the digest
+2. `/info-tracker today` — Claude reads raw content and summarizes
+
+That's it. No separate summarize step needed.
 
 ## Channel Notifications
 
-For scheduled digests via Telegram/Discord/iMessage, the user should:
+For scheduled digests via Telegram/Discord/iMessage:
 1. Set up Claude Code Channels (e.g., `/plugin install telegram@claude-plugins-official`)
 2. Start Claude Code with `--channels`
 3. From the channel, ask "give me my info-tracker digest"
 
-The digest frequency in config controls how often to send — use with Claude Code scheduled tasks.
-
 ## Error Handling
 
 If a command fails:
-- Check that `.env` exists with API keys (`ANTHROPIC_API_KEY` required for summarize)
-- Check `YOUTUBE_API_KEY` is set for YouTube collection
-- Check `X_API_BEARER_TOKEN` is set for Twitter/X collection
-- RSS/Substack and Reddit work without API keys
+- RSS/Substack and Reddit work with **no API keys**
+- YouTube needs `YOUTUBE_API_KEY` in `.env`
+- X/Twitter needs `X_API_BEARER_TOKEN` in `.env`

@@ -39,24 +39,29 @@ def get_collectors() -> dict:
 
 
 def cmd_digest(args: list[str]):
-    """Show digest, optionally filtered by category."""
+    """Show recent content for Claude to summarize inline. Optionally filter by category."""
     db = get_db()
     category = args[0] if args else None
-    from backend.services.digest import build_digest
-    result = build_digest(db, category=category)
-    if not result["items"]:
-        print("No summarized content yet. Run: /info-tracker collect")
+    query = db.query(Content).join(Person).join(Category)
+    if category:
+        query = query.filter(Category.name == category)
+    contents = query.order_by(Content.published_at.desc().nullslast()).limit(30).all()
+    if not contents:
+        print("No content yet. Run: /info-tracker collect")
+        db.close()
         return
-    for item in result["items"]:
-        print(f"**{item['person_name']}** ({item['category_name']}, {item['source_platform']})")
-        if item["so_what"]:
-            print(f"  {item['so_what']}")
-        if item["ai_summary"]:
-            for line in item["ai_summary"].split("\n"):
-                if line.strip():
-                    print(f"  {line.strip()}")
-        print(f"  {item['original_url']}")
+    for c in contents:
+        print(f"--- [{c.person.name}] ({c.person.category.name}, {c.source_platform}) ---")
+        print(f"URL: {c.original_url}")
+        if c.published_at:
+            print(f"Date: {c.published_at.strftime('%Y-%m-%d')}")
+        # Truncate very long content to keep context manageable
+        text = c.raw_text
+        if len(text) > 1000:
+            text = text[:1000] + "... [truncated]"
+        print(text)
         print()
+    print(f"({len(contents)} items)")
     db.close()
 
 
